@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#090d18">
+  <title>NEXUS.AI</title>
+  <style>
+    :root{color-scheme:dark;--bg:#090d18;--panel:#111827;--panel2:#182235;--line:#26344b;--text:#edf3ff;--muted:#9aabc4;--accent:#68a7ff}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 20% 0%,#152647 0,transparent 36%),var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;min-height:100vh}
+    .app{max-width:900px;margin:auto;min-height:100vh;display:flex;flex-direction:column;padding:18px}
+    header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding:8px 2px 18px}
+    .brand{display:flex;align-items:center;gap:11px;font-weight:800;font-size:21px;letter-spacing:.4px}.orb{width:38px;height:38px;border-radius:13px;background:linear-gradient(135deg,#60a5fa,#8b5cf6);display:grid;place-items:center;color:#07101f;font-weight:900}
+    .status{font-size:12px;color:#9ee6bf;border:1px solid #28533f;padding:5px 9px;border-radius:99px}
+    .intro{padding:38px 8px 22px}.intro h1{font-size:clamp(27px,6vw,42px);margin:0 0 8px}.intro p{color:var(--muted);margin:0}
+    #chat{flex:1;display:flex;flex-direction:column;gap:14px;padding:12px 0 22px}
+    .msg{max-width:85%;padding:13px 15px;border:1px solid var(--line);border-radius:16px;white-space:pre-wrap;overflow-wrap:anywhere}
+    .assistant{align-self:flex-start;background:var(--panel)}.user{align-self:flex-end;background:#17345c;border-color:#28538b}
+    .composer{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 20%);padding:14px 0 8px}
+    .entry{display:flex;gap:9px;background:var(--panel);border:1px solid var(--line);padding:8px;border-radius:17px}
+    textarea{flex:1;resize:none;min-height:44px;max-height:150px;background:transparent;color:var(--text);border:0;outline:0;padding:10px;font:inherit}
+    button{border:0;border-radius:12px;background:var(--accent);color:#07101f;font-weight:800;padding:0 17px;cursor:pointer}
+    button:disabled{opacity:.55;cursor:wait}.tools{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;padding:9px 3px}
+    .tools button{background:transparent;color:var(--muted);padding:4px 8px;font-weight:500}
+    .notice{color:var(--muted);font-size:12px;text-align:center;margin:9px 0}
+    @media(max-width:560px){.app{padding:12px}.msg{max-width:94%}.intro{padding-top:28px}}
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <div class="brand"><div class="orb">N</div><span>NEXUS.AI</span></div>
+      <span class="status">● READY</span>
+    </header>
+    <section class="intro">
+      <h1>Your AI. Your workspace.</h1>
+      <p>Ask questions, explore ideas, and build things with NEXUS.</p>
+    </section>
+    <section id="chat" aria-live="polite">
+      <div class="msg assistant">Hello! I'm NEXUS.AI. Once an AI provider is connected, I'll be ready to help. What would you like to explore?</div>
+    </section>
+    <section class="composer">
+      <div class="entry">
+        <textarea id="prompt" rows="1" placeholder="Message NEXUS.AI..." aria-label="Message"></textarea>
+        <button id="send">Send</button>
+      </div>
+      <div class="tools"><span>Enter to send · Shift + Enter for a new line</span><button id="clear">New chat</button></div>
+      <p class="notice">AI responses can be inaccurate. Avoid sharing passwords or private information.</p>
+    </section>
+  </main>
+<script>
+const chat = document.getElementById('chat');
+const promptBox = document.getElementById('prompt');
+const sendButton = document.getElementById('send');
+let history = [];
+
+function addMessage(role, text) {
+  const el = document.createElement('div');
+  el.className = 'msg ' + role;
+  el.textContent = text;
+  chat.appendChild(el);
+  el.scrollIntoView({behavior:'smooth', block:'end'});
+  return el;
+}
+async function sendMessage() {
+  const text = promptBox.value.trim();
+  if (!text || sendButton.disabled) return;
+  promptBox.value = '';
+  addMessage('user', text);
+  history.push({role:'user', content:text});
+  sendButton.disabled = true;
+  sendButton.textContent = '...';
+  const waiting = addMessage('assistant', 'NEXUS is thinking...');
+  try {
+    const response = await fetch('/.netlify/functions/chat', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({messages:history})
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'The AI service could not respond.');
+    const answer = data.reply || 'The AI returned an empty response.';
+    waiting.textContent = answer;
+    history.push({role:'assistant', content:answer});
+  } catch (err) {
+    waiting.textContent = 'Connection not ready: ' + err.message + '\n\nThe website is running, but the AI provider still needs to be configured.';
+  } finally {
+    sendButton.disabled = false;
+    sendButton.textContent = 'Send';
+    promptBox.focus();
+  }
+}
+sendButton.addEventListener('click', sendMessage);
+promptBox.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+document.getElementById('clear').addEventListener('click', () => {
+  history = [];
+  chat.innerHTML = '<div class="msg assistant">New conversation started. What shall we work on?</div>';
+});
+</script>
+</body>
+</html>
